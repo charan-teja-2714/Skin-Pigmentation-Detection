@@ -1,0 +1,25 @@
+
+fastapi
+uvicorn
+# pillow==10.0.0
+# numpy==1.24.3
+python-multipart==0.0.6
+opencv-python==4.8.0.76
+# pyyaml
+
+# Core deep learning
+torch
+torchvision
+timm
+
+# Image processing
+Pillow
+numpy
+pandas
+matplotlib
+
+# Training utilities
+pyyaml
+
+# (Optional but recommended)
+tqdm

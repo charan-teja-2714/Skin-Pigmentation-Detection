@@ -1,0 +1,16 @@
+dataset:
+  dermoscopy_path: "../backend/data/dermoscopy/images"
+  clinical_path: "../backend/data/clinical/images"
+
+training:
+  batch_size: 8
+  epochs: 10
+  learning_rate: 0.0001
+  num_workers: 4
+  save_path: "best_model.pth"
+
+model:
+  attention_heads: 8
+
+device:
+  use_gpu: true
