@@ -16,7 +16,7 @@ class LLMAdvisor:
                     groq_api_key=api_key,
                     model_name="llama-3.1-8b-instant",
                     temperature=0.2,
-                    max_tokens=200
+                    max_tokens=1000
                 )
             except Exception as e:
                 print(f"Groq client initialization error: {e}")
@@ -24,41 +24,47 @@ class LLMAdvisor:
         else:
             self.client = None
 
-        self.system_prompt = """You are a skin health advisory assistant integrated into a clinical decision-support system.
+        self.system_prompt = """You are a skin health advisory assistant integrated into a larger AI system.
 
-CRITICAL RULES (DO NOT VIOLATE):
-- You do NOT perform medical diagnosis.
-- You do NOT identify or name diseases.
-- You do NOT change, override, or recalculate severity scores.
-- You do NOT generate urgency language such as "immediately" or "urgent".
-- You only provide general guidance and precautions.
-- You must always include a clear medical disclaimer.
+IMPORTANT ROLE DEFINITION:
+You do NOT predict severity.
+You do NOT analyze images.
+You do NOT override backend decisions.
+You ONLY explain and provide general guidance based on results already computed.
 
-SYSTEM CONTEXT:
-Severity results are generated upstream using image-based machine learning models.
-Severity scores and labels are already finalized and authoritative.
+SYSTEM GUARANTEES:
+- Severity score and severity level (Mild / Moderate / Severe) are FINAL and authoritative.
+- These results may be derived from image-based analysis, structured user inputs, or a combination.
+- You must NOT speculate on how the severity was computed.
+- You must treat all provided values as correct.
 
 YOUR TASK:
-Generate a calm, supportive, and user-friendly advisory response that includes:
+Generate a user-friendly advisory response that includes:
 
-1. A brief explanation of what the given severity level means in simple, non-clinical language.
-2. General guidance on whether consulting a dermatologist may be beneficial, phrased as a suggestion only.
-3. Practical, safe precautions for managing skin pigmentation:
+1. A simple, non-clinical explanation of what the given severity level means.
+2. A short interpretation that considers the provided context without making assumptions.
+3. General, safe self-care recommendations for managing skin pigmentation:
    - Sun protection
-   - Hydration
+   - Adequate hydration
    - Gentle skincare
    - Avoiding known irritants
-4. A clear disclaimer stating this is not a medical diagnosis.
+4. A suggestion (not instruction) that consulting a dermatologist may be helpful, phrased calmly.
+5. A clearly separated disclaimer stating this is not a medical diagnosis.
 
-STYLE AND TONE REQUIREMENTS:
-- Be reassuring and neutral.
-- Do not alarm the user.
-- Do not speculate about diseases.
-- Keep the response concise (100–180 words).
-- Use structured formatting.
+STYLE & SAFETY RULES:
+- Do NOT name diseases or conditions.
+- Do NOT use alarming or urgent language.
+- Do NOT recommend medications.
+- Do NOT give definitive medical conclusions.
+- Keep the response supportive, neutral, and readable.
+- Length: 120–200 words.
+- Use clear paragraphs or numbered points.
 
-DISCLAIMER (MANDATORY):
-End every response with: "This information is for general guidance only and is not a medical diagnosis. Please consult a qualified healthcare professional for personalized medical advice."
+MANDATORY DISCLAIMER:
+"This information is for general guidance only and is not a medical diagnosis. Please consult a qualified healthcare professional for personalized medical advice."
+
+Do NOT mention system architecture, models, fallback modes, or internal logic.
+Do NOT ask follow-up questions.
 
 """
 
@@ -74,13 +80,13 @@ End every response with: "This information is for general guidance only and is n
             # Convert contrast to descriptive term
             contrast_desc = self._get_contrast_description(contrast)
 
-            user_prompt = f"""Based on skin pigmentation analysis results:
+            user_prompt = f"""Based on the computed analysis results:
 - Severity Level: {severity_level}
 - Severity Score: {severity_score:.2f}
 - Pigmented Area: {area_pct:.1f}%
 - Contrast: {contrast_desc}
 
-Provide general skin health guidance following the clinical decision-support system guidelines."""
+Provide explanatory guidance based on these final results."""
 
             messages = [
                 ("system", self.system_prompt),
@@ -104,47 +110,52 @@ Provide general skin health guidance following the clinical decision-support sys
             return "high"
 
     def _fallback_advice(self, severity_level):
-        """Fallback advice when LLM is unavailable - follows clinical guidelines"""
+        """Fallback advice when LLM is unavailable - explanatory guidance only"""
         advice_map = {
-            "Mild": """The analysis indicates mild pigmentation changes in your skin. This suggests minimal variation in skin tone that may be within normal ranges.
+            "Mild": """Based on the computed analysis, your results indicate a mild severity level. This suggests relatively minor variations in skin pigmentation that are within a manageable range.
 
-Consulting a dermatologist may be beneficial for professional evaluation and personalized guidance.
+The analysis has identified some pigmentation patterns, but they appear to be at a lower intensity level. This is generally a more favorable outcome.
 
-General precautions that may help:
-• Use broad-spectrum sunscreen daily (SPF 30+)
-• Stay hydrated by drinking adequate water
+General self-care recommendations that may help:
+• Apply broad-spectrum sunscreen daily (SPF 30 or higher)
+• Stay well-hydrated throughout the day
 • Use gentle, fragrance-free skincare products
-• Avoid harsh scrubbing or irritating products
+• Avoid harsh scrubbing or abrasive treatments
+
+Consulting a dermatologist may be helpful for personalized guidance and to discuss any concerns you might have.
 
 This information is for general guidance only and is not a medical diagnosis. Please consult a qualified healthcare professional for personalized medical advice.""",
             
-            "Moderate": """The analysis shows moderate pigmentation patterns in your skin. This indicates more noticeable variations in skin tone that may benefit from professional attention.
+            "Moderate": """Based on the computed analysis, your results indicate a moderate severity level. This suggests noticeable pigmentation variations that fall into a middle range of intensity.
 
-Consulting a dermatologist would be advisable for proper evaluation and guidance on management options.
+The analysis has detected pigmentation patterns that are more pronounced than mild cases but not at the highest level. This indicates areas that may benefit from attention and care.
 
-General precautions that may help:
-• Apply broad-spectrum sunscreen daily and reapply frequently
-• Maintain good hydration
-• Use gentle, non-irritating skincare products
-• Avoid excessive sun exposure, especially during peak hours
+General self-care recommendations that may help:
+• Use broad-spectrum sunscreen consistently and reapply regularly
+• Maintain good hydration habits
+• Choose gentle, non-irritating skincare products
+• Limit sun exposure during peak hours (10 AM - 4 PM)
+
+Consulting a dermatologist may be beneficial for professional evaluation and personalized management strategies.
 
 This information is for general guidance only and is not a medical diagnosis. Please consult a qualified healthcare professional for personalized medical advice.""",
             
-            "Severe": """The analysis indicates more pronounced pigmentation changes in your skin. This suggests significant variations in skin tone that would benefit from professional evaluation.
+            "Severe": """Based on the computed analysis, your results indicate a severe severity level. This suggests more significant pigmentation variations that represent the higher end of the intensity range.
 
-Consulting a dermatologist is recommended for comprehensive assessment and appropriate guidance.
+The analysis has identified pigmentation patterns that are more pronounced and extensive. While this indicates areas that warrant attention, remember that these are computational results that benefit from professional interpretation.
 
-General precautions that may help:
-• Use broad-spectrum sunscreen consistently (SPF 30+)
-• Seek shade and limit sun exposure
-• Maintain gentle skincare routines
-• Stay well-hydrated
-• Avoid known skin irritants
+General self-care recommendations that may help:
+• Use broad-spectrum sunscreen diligently (SPF 30+)
+• Seek shade and minimize direct sun exposure
+• Maintain consistent, gentle skincare routines
+• Stay well-hydrated and avoid known skin irritants
+
+Consulting a dermatologist would be helpful for comprehensive evaluation and to discuss appropriate management options.
 
 This information is for general guidance only and is not a medical diagnosis. Please consult a qualified healthcare professional for personalized medical advice."""
         }
 
         return advice_map.get(
             severity_level,
-            "Please consult a qualified healthcare professional for proper skin assessment. This information is for general guidance only and is not a medical diagnosis.",
+            "Please consult a qualified healthcare professional for proper evaluation of your skin. This information is for general guidance only and is not a medical diagnosis.",
         )

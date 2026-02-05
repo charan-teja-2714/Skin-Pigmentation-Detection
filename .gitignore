@@ -1,49 +1,67 @@
-# Python
+# Training and testing folders
+backend/training/
+backend/testing/
+backend/segmentation_test/
+backend/severity_model_v2/
+
+# Model checkpoints and weights
+backend/checkpoints/
+backend/checkpoints_image_only/
+backend/model_swinvit.pt
+backend/swin_tiny_patch4_window7_224.pth
+
+# Hugging Face cache
+backend/hf_cache/
+hf_cache/
+
+# Root models folder
+backend/models/
+
+# Data folders
+backend/data/
+
+# Output folders
+backend/outputs/
+
+# Metadata and config files
+backend/metadata.py
+backend/config.yaml
+
+# Environment files
+backend/.env
+.env
+
+# Python cache
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
+*.pyc
+*.pyo
+*.pyd
 .Python
+*.so
+
+# Virtual environments
 venv/
 env/
 ENV/
-*.egg-info/
-dist/
-build/
 
-# PyTorch
-*.pth
-*.pt
-*.ckpt
-
-# Data
-backend/data/
-*.jpg
-*.jpeg
-*.png
-*.bmp
-*.tif
-*.tiff
-
-# Outputs
-backend/outputs/
-*.csv
-*.log
-
-# IDE
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# Node
-node_modules/
-frontend/dist/
-frontend/build/
-.env
-.env.local
-
-# OS
+# OS files
 .DS_Store
 Thumbs.db
+
+# Node modules
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+frontend/build/
+
+# Logs
+*.log
+logs/

@@ -1,38 +1,38 @@
 import torch
 import os
-from models.fusion_model import FusionModel
+from huggingface_hub import hf_hub_download
+from severity_model_v2.models.fusion_model import FusionModel
 import numpy as np
 
 def load_model():
     model = FusionModel()
     
-    # Load pretrained Swin Transformer weights
-    model_path = os.path.join(os.path.dirname(__file__), "..", "new_train_model.pth")
-    
-    if os.path.exists(model_path):
-        pretrained_dict = torch.load(model_path, map_location='cpu')
-        if 'model' in pretrained_dict:
-            pretrained_dict = pretrained_dict['model']
+    try:
+        # Download model from Hugging Face
+        model_path = hf_hub_download(
+            repo_id="Charan2714/skin-pigmentation",
+            filename="severity_swin_multimodal_best.pth",
+            cache_dir="./hf_cache"
+        )
         
-        # Load pretrained weights into both encoders with size matching
-        model_dict = model.state_dict()
+        # Load the model weights
+        checkpoint = torch.load(model_path, map_location='cpu')
         
-        # Update clinical encoder (only matching layers)
-        clinical_dict = {f'clinical_encoder.model.{k}': v for k, v in pretrained_dict.items() 
-                        if f'clinical_encoder.model.{k}' in model_dict and 
-                        model_dict[f'clinical_encoder.model.{k}'].shape == v.shape}
-        model_dict.update(clinical_dict)
+        # Handle different checkpoint formats
+        if 'model_state_dict' in checkpoint:
+            state_dict = checkpoint['model_state_dict']
+        elif 'model' in checkpoint:
+            state_dict = checkpoint['model']
+        else:
+            state_dict = checkpoint
         
-        # Update dermoscopy encoder (only matching layers)
-        dermoscopy_dict = {f'dermoscopy_encoder.model.{k}': v for k, v in pretrained_dict.items() 
-                          if f'dermoscopy_encoder.model.{k}' in model_dict and 
-                          model_dict[f'dermoscopy_encoder.model.{k}'].shape == v.shape}
-        model_dict.update(dermoscopy_dict)
+        # Load state dict with strict=False to handle any architecture differences
+        model.load_state_dict(state_dict, strict=False)
+        print(f"[INFO] Loaded model from Hugging Face: Charan2714/skin-pigmentation")
         
-        model.load_state_dict(model_dict, strict=False)
-        print(f"[INFO] Loaded pretrained weights from {model_path}")
-    else:
-        print(f"[WARNING] Pretrained model not found at {model_path}, using random weights")
+    except Exception as e:
+        print(f"[ERROR] Failed to load model from Hugging Face: {e}")
+        print(f"[WARNING] Using model with random weights")
     
     model.eval()
     return model

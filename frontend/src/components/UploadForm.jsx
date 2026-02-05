@@ -9,12 +9,29 @@ const UploadForm = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
+  
+  // Manual input fields
+  const [manualData, setManualData] = useState({
+    affected_area: '',
+    pigmentation_intensity: '',
+    duration: '',
+    progression: '',
+    itching: '',
+    burning: '',
+    pain: '',
+    sun_exposure: '',
+    sunscreen_use: '',
+    user_concern: ''
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!clinicalImage) {
-      setError('Clinical image is required');
+    const hasImage = clinicalImage !== null;
+    const hasManualInputs = Object.values(manualData).some(value => value !== '');
+    
+    if (!hasImage && !hasManualInputs) {
+      setError('Please provide either an image or fill in the assessment fields');
       return;
     }
 
@@ -23,10 +40,18 @@ const UploadForm = () => {
     setResult(null);
 
     try {
-      const prediction = await predictPigmentation(clinicalImage);
+      const cleanManualData = {};
+      Object.keys(manualData).forEach(key => {
+        if (manualData[key] !== '') {
+          cleanManualData[key] = manualData[key];
+        }
+      });
+      
+      const prediction = await predictPigmentation(clinicalImage, cleanManualData);
       setResult(prediction);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Prediction failed');
+      const errorMessage = err.response?.data?.detail || err.message || 'Prediction failed';
+      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
     } finally {
       setLoading(false);
     }
@@ -46,41 +71,161 @@ const UploadForm = () => {
     }
   };
 
+  const handleManualInputChange = (field, value) => {
+    setManualData(prev => ({ ...prev, [field]: value }));
+  };
+
   const openCamera = () => {
     setShowCamera(true);
   };
 
   return (
     <div className="upload-form">
-      <h2>Skin Pigmentation Detection</h2>
+      <h2>Skin Pigmentation Assessment</h2>
       
       <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="clinical">Upload Skin Image (Required):</label>
-          <div className="input-group">
-            <input
-              type="file"
-              id="clinical"
-              accept="image/*"
-              onChange={handleFileChange}
-            />
-            <button type="button" onClick={openCamera} className="camera-btn">
-              📷 Camera
-            </button>
+        <div className="form-container">
+          {/* Left Side - Manual Assessment */}
+          <div className="assessment-section">
+            <h3>📋 Clinical Assessment</h3>
+            
+            <div className="form-group">
+              <label>Affected Area (Extent):</label>
+              <select value={manualData.affected_area} onChange={(e) => handleManualInputChange('affected_area', e.target.value)}>
+                <option value="">Select extent</option>
+                <option value="small_spots">Small Spots</option>
+                <option value="several_small_spots">Several Small Spots</option>
+                <option value="large_patches">Large Patches</option>
+                <option value="most_of_area">Most of Area</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Pigmentation Intensity:</label>
+              <select value={manualData.pigmentation_intensity} onChange={(e) => handleManualInputChange('pigmentation_intensity', e.target.value)}>
+                <option value="">Select intensity</option>
+                <option value="light">Light</option>
+                <option value="medium">Medium</option>
+                <option value="dark">Dark</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Duration of Pigmentation:</label>
+              <select value={manualData.duration} onChange={(e) => handleManualInputChange('duration', e.target.value)}>
+                <option value="">Select duration</option>
+                <option value="less_than_1_month">Less than 1 month</option>
+                <option value="one_to_six_months">1-6 months</option>
+                <option value="more_than_six_months">More than 6 months</option>
+                <option value="several_years">Several years</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Progression Over Time:</label>
+              <select value={manualData.progression} onChange={(e) => handleManualInputChange('progression', e.target.value)}>
+                <option value="">Select progression</option>
+                <option value="stable">Stable</option>
+                <option value="slowly_increasing">Slowly Increasing</option>
+                <option value="rapidly_increasing">Rapidly Increasing</option>
+              </select>
+            </div>
+
+            <div className="symptoms-group">
+              <h4>Symptoms</h4>
+              <div className="checkbox-group">
+                <div className="form-group">
+                  <label>Itching:</label>
+                  <select value={manualData.itching} onChange={(e) => handleManualInputChange('itching', e.target.value)}>
+                    <option value="">Select</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Burning Sensation:</label>
+                  <select value={manualData.burning} onChange={(e) => handleManualInputChange('burning', e.target.value)}>
+                    <option value="">Select</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Pain or Discomfort:</label>
+                  <select value={manualData.pain} onChange={(e) => handleManualInputChange('pain', e.target.value)}>
+                    <option value="">Select</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="contextual-group">
+              <h4>Contextual Information</h4>
+              <div className="form-group">
+                <label>Sun Exposure Level:</label>
+                <select value={manualData.sun_exposure} onChange={(e) => handleManualInputChange('sun_exposure', e.target.value)}>
+                  <option value="">Select exposure</option>
+                  <option value="low">Low</option>
+                  <option value="moderate">Moderate</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Sunscreen Usage:</label>
+                <select value={manualData.sunscreen_use} onChange={(e) => handleManualInputChange('sunscreen_use', e.target.value)}>
+                  <option value="">Select usage</option>
+                  <option value="regularly">Regularly</option>
+                  <option value="occasionally">Occasionally</option>
+                  <option value="never">Never</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Your Concern Level:</label>
+                <select value={manualData.user_concern} onChange={(e) => handleManualInputChange('user_concern', e.target.value)}>
+                  <option value="">Select concern</option>
+                  <option value="not_concerned">Not Concerned</option>
+                  <option value="somewhat_concerned">Somewhat Concerned</option>
+                  <option value="very_concerned">Very Concerned</option>
+                </select>
+              </div>
+            </div>
           </div>
-          {clinicalImage && <p className="file-name">Selected: {clinicalImage.name}</p>}
+
+          {/* Right Side - Image Upload */}
+          <div className="image-section">
+            <h3>📷 Image Analysis</h3>
+            <div className="form-group">
+              <label htmlFor="clinical">Upload Skin Image:</label>
+              <div className="input-group">
+                <input
+                  type="file"
+                  id="clinical"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
+                <button type="button" onClick={openCamera} className="camera-btn">
+                  📷 Camera
+                </button>
+              </div>
+              {clinicalImage && <p className="file-name">Selected: {clinicalImage.name}</p>}
+            </div>
+
+            {imagePreview && (
+              <div className="image-preview">
+                <h4>Selected Image:</h4>
+                <img src={imagePreview} alt="Selected skin image" className="preview-image" />
+              </div>
+            )}
+          </div>
         </div>
 
-        {imagePreview && (
-          <div className="image-preview">
-            <h4>Selected Image:</h4>
-            <img src={imagePreview} alt="Selected skin image" className="preview-image" />
-          </div>
-        )}
-
-        <button type="submit" disabled={loading || !clinicalImage}>
-          {loading ? 'Analyzing...' : 'Analyze'}
-        </button>
+        <div className="submit-section">
+          <button type="submit" disabled={loading}>
+            {loading ? 'Analyzing...' : 'Analyze Pigmentation'}
+          </button>
+        </div>
       </form>
 
       {error && (
@@ -100,8 +245,15 @@ const UploadForm = () => {
               <p><strong>Severity:</strong> <span className={`severity-${result.severity.toLowerCase()}`}>{result.severity}</span></p>
               {result.features && (
                 <div className="features">
-                  <p><strong>Pigmented Area:</strong> {result.features.pigmented_area_pct}%</p>
-                  <p><strong>Contrast:</strong> {result.features.contrast}</p>
+                  <p><strong>Input Method:</strong> {result.features.input_method}</p>
+                  {Object.entries(result.features).map(([key, value]) => {
+                    if (key !== 'input_method' && value !== undefined && value !== null) {
+                      const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      const displayValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                      return <p key={key}><strong>{displayKey}:</strong> {displayValue}</p>;
+                    }
+                    return null;
+                  })}
                 </div>
               )}
             </div>
@@ -110,40 +262,52 @@ const UploadForm = () => {
               <div className="advisory-card">
                 <h4>🩺 Medical Advisory</h4>
                 <div className="advisory-content">
-                  {result.advisory.split('\n').filter(line => line.trim()).map((line, index) => {
-                    const isDisclaimer = line.toLowerCase().includes('disclaimer') || 
-                                       line.toLowerCase().includes('not a medical diagnosis') ||
-                                       line.toLowerCase().includes('consult');
-                    const isHeading = line.includes(':') && !line.includes('•') && line.length < 100;
-                    const isBullet = line.trim().startsWith('*') || line.trim().startsWith('-');
+                  {result.advisory.split('\n').map((line, index) => {
+                    // Clean the line thoroughly
+                    let cleanLine = line.trim()
+                      .replace(/^\*+\s*/, '') // Remove asterisks at start
+                      .replace(/\*+$/, '') // Remove asterisks at end
+                      .replace(/\*\*(.*?)\*\*/g, '$1') // Remove **bold**
+                      .replace(/\*(.*?)\*/g, '$1') // Remove *italic*
+                      .replace(/^[*-]\s*/, '') // Remove bullet points
+                      .replace(/^#+\s*/, '') // Remove headers
+                      .replace(/^\d+\.\s*/, '') // Remove numbered lists
+                      .replace(/&#39;/g, "'") // Fix HTML entities
+                      .replace(/&quot;/g, '"')
+                      .replace(/&amp;/g, '&');
                     
-                    // Clean up the line
-                    let cleanLine = line;
-                    if (isBullet) {
-                      cleanLine = line.replace(/^\s*[*-]\s*/, ''); // Remove bullet markers
-                    }
+                    // Skip empty lines
+                    if (!cleanLine) return null;
                     
-                    // Handle bold text **text**
-                    const parts = cleanLine.split(/\*\*(.*?)\*\*/);
+                    // Check content type
+                    const isDisclaimer = cleanLine.toLowerCase().includes('disclaimer') || 
+                                       cleanLine.toLowerCase().includes('not a medical diagnosis') ||
+                                       cleanLine.toLowerCase().includes('consult a qualified healthcare');
+                    
+                    const isHeading = (cleanLine.includes(':') && cleanLine.length < 80) ||
+                                    cleanLine.toLowerCase().includes('understanding') ||
+                                    cleanLine.toLowerCase().includes('interpreting') ||
+                                    cleanLine.toLowerCase().includes('recommendations');
+                    
+                    const isRecommendation = /^(sun protection|adequate hydration|gentle skincare|avoid|wear|drink|use|seek|apply)/i.test(cleanLine);
                     
                     return (
-                      <p key={index} className={`
-                        ${isDisclaimer ? 'disclaimer' : ''}
-                        ${isHeading ? 'advisory-heading' : ''}
-                        ${isBullet ? 'bullet-point' : ''}
-                      `.trim()}>
-                        {parts.map((part, i) => 
-                          i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-                        )}
-                      </p>
+                      <div key={index} className={`advisory-item ${
+                        isDisclaimer ? 'disclaimer' : 
+                        isHeading ? 'advisory-heading' : 
+                        isRecommendation ? 'recommendation' : 'advisory-text'
+                      }`}>
+                        {isRecommendation && <span className="bullet">•</span>}
+                        <span>{cleanLine}</span>
+                      </div>
                     );
-                  })}
+                  }).filter(Boolean)}
                 </div>
               </div>
             )}
           </div>
           
-          {result.masks && (
+          {/* {result.masks && (
             <div className="masks-section">
               <h4>🔍 Analysis Visualization</h4>
               <div className="masks-container">
@@ -157,7 +321,7 @@ const UploadForm = () => {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
         </div>
       )}
 
