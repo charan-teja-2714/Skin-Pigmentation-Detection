@@ -1,5 +1,5 @@
 # Backend Architecture Documentation
-## Multi-Modal Skin Pigmentation Detection System
+## Dual-Modal Skin Pigmentation Detection System
 
 ---
 
@@ -20,13 +20,13 @@
 ## 1. System Overview
 
 ### Purpose
-A deep learning system that analyzes skin pigmentation severity using multiple image modalities (clinical, dermoscopy, multispectral) through a fusion-based architecture.
+A deep learning system that analyzes skin pigmentation severity using dual image modalities (clinical and dermoscopy) through a fusion-based architecture.
 
 ### Core Capabilities
-- **Multi-modal fusion**: Combines information from 3 different imaging types
+- **Dual-modal fusion**: Combines information from clinical and dermoscopy imaging
 - **Regression-based scoring**: Outputs continuous pigmentation score (0-1)
 - **Severity classification**: Maps scores to interpretable labels (Mild/Moderate/Severe)
-- **Flexible input**: Works with 1, 2, or all 3 modalities
+- **Flexible input**: Works with clinical only or both modalities
 
 ### Technology Stack
 - **Framework**: PyTorch
@@ -49,13 +49,12 @@ Input Images → Preprocessing → Encoders → Cross-Attention Fusion → Predi
 FusionModel
 ├── SwinEncoder (Clinical)
 ├── SwinEncoder (Dermoscopy)
-├── SwinEncoder (Multispectral)
 ├── CrossAttention (Fusion Module)
 └── PredictionHead (Regression)
 ```
 
 ### Design Philosophy
-1. **Query-Key-Value Paradigm**: Clinical image acts as query, auxiliary modalities as key-value pairs
+1. **Query-Key-Value Paradigm**: Clinical image acts as query, dermoscopy as key-value pair
 2. **Modular Encoders**: Each modality has independent feature extraction
 3. **Attention-Based Fusion**: Cross-attention learns optimal feature combination
 4. **End-to-End Training**: All components trained jointly
@@ -103,7 +102,7 @@ Output: (B, 768) - Feature embeddings (embed_dim=768 for swin_tiny)
 
 ### 3.2 Cross-Attention Module (`models/cross_attention.py`)
 
-**Purpose**: Fuse features from multiple modalities using attention mechanism
+**Purpose**: Fuse features from clinical and dermoscopy modalities using attention mechanism
 
 **Architecture**:
 - Multi-head attention with 8 heads
@@ -113,15 +112,15 @@ Output: (B, 768) - Feature embeddings (embed_dim=768 for swin_tiny)
 
 **Key Concepts**:
 - **Query**: Clinical image features (what we want to enhance)
-- **Key-Value**: Auxiliary modality features (dermoscopy, multispectral)
-- **Attention Weights**: Learned importance of each auxiliary feature
+- **Key-Value**: Dermoscopy features (auxiliary information)
+- **Attention Weights**: Learned importance of dermoscopy features
 - **Residual Connection**: Preserves original clinical information
 
 **Mathematical Flow**:
 ```
 1. Project query:     Q = W_q × clinical_features
-2. Project key:       K = W_k × auxiliary_features
-3. Project value:     V = W_v × auxiliary_features
+2. Project key:       K = W_k × dermoscopy_features
+3. Project value:     V = W_v × dermoscopy_features
 4. Compute attention: A = softmax(Q × K^T / √d_k)
 5. Apply attention:   O = A × V
 6. Output projection: out = W_o × O
@@ -131,13 +130,13 @@ Output: (B, 768) - Feature embeddings (embed_dim=768 for swin_tiny)
 **Input/Output**:
 ```
 query:      (B, 1, 768) - Clinical features as single token
-key_value:  (B, N, 768) - N auxiliary modality tokens
+key_value:  (B, 1, 768) - Dermoscopy features as single token
 output:     (B, 1, 768) - Fused features
 ```
 
 **Why Cross-Attention?**
-- Allows clinical image to "attend" to relevant auxiliary information
-- Learns which modality provides useful information for each case
+- Allows clinical image to "attend" to relevant dermoscopy information
+- Learns when dermoscopy provides useful information
 - More flexible than simple concatenation or averaging
 - Residual connection ensures clinical features aren't lost
 
@@ -148,34 +147,32 @@ The residual connection (`output + query`) is ESSENTIAL. Without it, the model m
 
 ### 3.3 Fusion Model (`models/fusion_model.py`)
 
-**Purpose**: Orchestrate the complete multi-modal pipeline
+**Purpose**: Orchestrate the complete dual-modal pipeline
 
 **Architecture Flow**:
 ```
 1. Encode clinical image → (B, 768)
 2. Encode dermoscopy image (if provided) → (B, 768)
-3. Encode multispectral image (if provided) → (B, 768)
-4. Stack auxiliary features → (B, N, 768) where N ∈ {0,1,2}
-5. Prepare clinical as query → (B, 1, 768)
-6. Cross-attention fusion → (B, 1, 768)
-7. Squeeze to (B, 768)
-8. Prediction head → (B, 1) score
+3. Stack dermoscopy features → (B, 1, 768)
+4. Prepare clinical as query → (B, 1, 768)
+5. Cross-attention fusion → (B, 1, 768)
+6. Squeeze to (B, 768)
+7. Prediction head → (B, 1) score
 ```
 
-**Handling Missing Modalities**:
+**Handling Missing Dermoscopy**:
 - **Clinical only**: Zero tensor used as key-value (fallback mode)
-- **Clinical + 1 auxiliary**: N=1 token
-- **Clinical + 2 auxiliary**: N=2 tokens
+- **Clinical + dermoscopy**: Normal dual-modal operation
 
 **Design Rationale**:
 - Clinical image is ALWAYS required (query)
-- Auxiliary modalities are optional (key-value)
-- Model gracefully degrades with fewer modalities
-- All encoders share same architecture but have independent weights
+- Dermoscopy is optional (key-value)
+- Model gracefully degrades with clinical-only input
+- Both encoders share same architecture but have independent weights
 
 **Key Implementation**:
 ```python
-# Fallback when no auxiliary modality provided
+# Fallback when no dermoscopy provided
 if len(key_value_features) == 0:
     key_value_features.append(torch.zeros_like(clinical_features))
 ```
@@ -253,48 +250,25 @@ data/dermoscopy/images/
 └── ...
 ```
 
-#### Multispectral Dataset (`datasets/multispectral_dataset.py`)
-**Purpose**: Simulate multispectral imaging from RGB images
-
-**Key Concept**: True multispectral cameras are expensive/rare. This simulates multispectral data using color space transformations.
-
-**Simulation Process**:
-```
-1. Load RGB image
-2. Convert to HSV color space → extract H, S channels
-3. Convert to LAB color space → extract L channel
-4. Stack [H, S, L] as pseudo-multispectral channels
-5. Apply transforms
-```
-
-**Why This Works**:
-- HSV separates color (H, S) from intensity (V)
-- LAB separates luminance (L) from color (A, B)
-- These channels capture different spectral properties
-- Provides complementary information to RGB
-
-**Limitation**: This is a SIMULATION, not real multispectral data. Real multispectral imaging would use different wavelengths (UV, IR, etc.).
-
 ---
 
-### 4.2 Multi-Modal Dataset (`datasets/multimodal_dataset.py`)
+### 4.2 Dual-Modal Dataset (`datasets/multimodal_dataset.py`)
 
-**Purpose**: Combine all modalities into unified training samples
+**Purpose**: Combine clinical and dermoscopy modalities into unified training samples
 
 **Current Implementation**:
 ```python
 def __getitem__(self, idx):
     dermo_img = self.dermo[random.randint(0, len(self.dermo) - 1)]
     clinical_img = self.clinical[random.randint(0, len(self.clinical) - 1)]
-    multi_img = self.multi[random.randint(0, len(self.multi) - 1)]
     label = torch.rand(1)  # PSEUDO LABEL
-    return clinical_img, dermo_img, multi_img, label
+    return clinical_img, dermo_img, label
 ```
 
 **Critical Limitation**: 
 - **Random pairing**: Images from different modalities are randomly matched
 - **Pseudo labels**: Labels are random values, not real annotations
-- **No correspondence**: Clinical, dermoscopy, and multispectral images don't correspond to same patient/lesion
+- **No correspondence**: Clinical and dermoscopy images don't correspond to same patient/lesion
 
 **Why This Exists**:
 This is a PROOF-OF-CONCEPT implementation demonstrating the architecture. In production:
@@ -572,19 +546,15 @@ def preprocess_image(image_bytes):
 
 **Implementation**:
 ```python
-def run_inference(model, clinical_image, dermoscopy_image=None, multispectral_image=None):
+def run_inference(model, clinical_image, dermoscopy_image=None):
     with torch.no_grad():
         clinical_tensor = preprocess_image(clinical_image)
         
         dermoscopy_tensor = None
         if dermoscopy_image:
             dermoscopy_tensor = preprocess_image(dermoscopy_image)
-            
-        multispectral_tensor = None
-        if multispectral_image:
-            multispectral_tensor = preprocess_image(multispectral_image)
         
-        score = model(clinical_tensor, dermoscopy_tensor, multispectral_tensor)
+        score = model(clinical_tensor, dermoscopy_tensor)
         score_value = float(score.squeeze().item())
         severity = get_severity_label(score_value)
         
@@ -596,7 +566,7 @@ def run_inference(model, clinical_image, dermoscopy_image=None, multispectral_im
 
 **Key Features**:
 - `torch.no_grad()`: Disables gradient computation (faster, less memory)
-- Handles optional modalities gracefully
+- Handles optional dermoscopy modality gracefully
 - Extracts scalar value from tensor
 - Returns JSON-serializable dictionary
 
@@ -649,8 +619,7 @@ if __name__ == "__main__":
 @router.post("/predict")
 async def predict(
     clinical_image: UploadFile = File(...),      # Required
-    dermoscopy_image: UploadFile = File(None),   # Optional
-    multispectral_image: UploadFile = File(None) # Optional
+    dermoscopy_image: UploadFile = File(None)    # Optional
 )
 ```
 
@@ -732,10 +701,11 @@ BATCH_SIZE = config["training"]["batch_size"]
 
 | Component | Type | Input Shape | Output Shape | Parameters |
 |-----------|------|-------------|--------------|------------|
-| SwinEncoder | Transformer | (B,3,224,224) | (B,768) | ~28M |
-| CrossAttention | Multi-head Attn | (B,1,768), (B,N,768) | (B,1,768) | ~2.4M |
+| SwinEncoder (Clinical) | Transformer | (B,3,224,224) | (B,768) | ~28M |
+| SwinEncoder (Dermoscopy) | Transformer | (B,3,224,224) | (B,768) | ~28M |
+| CrossAttention | Multi-head Attn | (B,1,768), (B,1,768) | (B,1,768) | ~2.4M |
 | PredictionHead | MLP | (B,768) | (B,1) | ~200K |
-| **Total** | - | - | - | **~90M** |
+| **Total** | - | - | - | **~58M** |
 
 ### 9.2 Computational Requirements
 
@@ -853,11 +823,11 @@ Single images need `.unsqueeze(0)` to add batch dimension.
 
 ## Summary
 
-This system demonstrates a complete multi-modal deep learning pipeline:
+This system demonstrates a complete dual-modal deep learning pipeline:
 
 **Strengths**:
 - Modular, extensible architecture
-- Handles variable number of input modalities
+- Handles clinical-only or dual-modal input
 - Attention-based fusion learns optimal combination
 - Complete training and inference pipelines
 - Production-ready API structure
@@ -866,7 +836,6 @@ This system demonstrates a complete multi-modal deep learning pipeline:
 - Pseudo labels (not real clinical data)
 - Random image pairing (no correspondence)
 - Untrained model in API (demo only)
-- Simulated multispectral data
 
 **Production Requirements**:
 - Real annotated dataset with matched modalities

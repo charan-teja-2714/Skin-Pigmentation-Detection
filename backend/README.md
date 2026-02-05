@@ -1,10 +1,10 @@
 # Backend - Skin Pigmentation Detection API
 
 ## Overview
-FastAPI backend with PyTorch-based multi-modal skin pigmentation detection using Swin Transformers and cross-attention fusion.
+FastAPI backend with PyTorch-based dual-modal skin pigmentation detection using Swin Transformers and cross-attention fusion.
 
 ## Architecture
-- **Encoders**: Three Swin Transformer encoders for clinical, dermoscopy, and multispectral images
+- **Encoders**: Two Swin Transformer encoders for clinical and dermoscopy images
 - **Fusion**: Cross-attention mechanism with clinical features as query
 - **Output**: Regression score (0-1) converted to severity labels (Mild/Moderate/Severe)
 
@@ -34,7 +34,6 @@ Upload images for pigmentation analysis.
 
 **Optional:**
 - `dermoscopy_image`: Dermoscopy image file
-- `multispectral_image`: Multispectral image file
 
 **Response:**
 ```json

@@ -13,10 +13,9 @@ from torchvision import transforms
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datasets.dermoscopy_dataset import DermoscopyDataset
-from datasets.clinical_dataset import ClinicalDataset
-from datasets.multispectral_dataset import MultispectralDataset
-from datasets.multimodal_dataset import MultiModalDataset
+from cust_datasets.dermoscopy_dataset import DermoscopyDataset
+from cust_datasets.clinical_dataset import ClinicalDataset
+from cust_datasets.multimodal_dataset import MultiModalDataset
 from models.fusion_model import FusionModel
 
 
@@ -28,8 +27,8 @@ with open("config.yaml", "r") as f:
 
 DERMO_PATH = config["dataset"]["dermoscopy_path"]
 CLINICAL_PATH = config["dataset"]["clinical_path"]
-MODEL_PATH = config["training"]["save_path"]
-
+# MODEL_PATH = config["training"]["save_path"]
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "swin_tiny_patch4_window7_224.pth")
 BATCH_SIZE = config["training"]["batch_size"]
 NUM_WORKERS = config["training"]["num_workers"]
 
@@ -44,9 +43,9 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 # SEVERITY MAPPING
 # -----------------------------
 def score_to_severity(score):
-    if score < 0.25:
+    if score < 0.505:
         return "Mild"
-    elif score < 0.6:
+    elif score < 0.507:
         return "Moderate"
     else:
         return "Severe"
@@ -72,12 +71,10 @@ def evaluate():
     # -----------------------------
     dermo_dataset = DermoscopyDataset(DERMO_PATH, transform)
     clinical_dataset = ClinicalDataset(CLINICAL_PATH, transform)
-    multispectral_dataset = MultispectralDataset(CLINICAL_PATH, transform)
 
     full_dataset = MultiModalDataset(
         dermoscopy_ds=dermo_dataset,
-        clinical_ds=clinical_dataset,
-        multispectral_ds=multispectral_dataset
+        clinical_ds=clinical_dataset
     )
 
     # Use same 80/20 logic, but only evaluate on VAL
@@ -97,7 +94,28 @@ def evaluate():
     # LOAD MODEL
     # -----------------------------
     model = FusionModel().to(DEVICE)
-    model.load_state_dict(torch.load(MODEL_PATH, map_location=DEVICE))
+    
+    # Load pretrained Swin Transformer weights
+    pretrained_dict = torch.load(MODEL_PATH, map_location=DEVICE)
+    if 'model' in pretrained_dict:
+        pretrained_dict = pretrained_dict['model']
+    
+    # Load pretrained weights into both encoders with size matching
+    model_dict = model.state_dict()
+    
+    # Update clinical encoder (only matching layers)
+    clinical_dict = {f'clinical_encoder.model.{k}': v for k, v in pretrained_dict.items() 
+                    if f'clinical_encoder.model.{k}' in model_dict and 
+                    model_dict[f'clinical_encoder.model.{k}'].shape == v.shape}
+    model_dict.update(clinical_dict)
+    
+    # Update dermoscopy encoder (only matching layers)
+    dermoscopy_dict = {f'dermoscopy_encoder.model.{k}': v for k, v in pretrained_dict.items() 
+                      if f'dermoscopy_encoder.model.{k}' in model_dict and 
+                      model_dict[f'dermoscopy_encoder.model.{k}'].shape == v.shape}
+    model_dict.update(dermoscopy_dict)
+    
+    model.load_state_dict(model_dict, strict=False)
     model.eval()
 
     print(f"[INFO] Loaded model from {MODEL_PATH}")
@@ -113,16 +131,14 @@ def evaluate():
     # EVALUATION LOOP
     # -----------------------------
     with torch.no_grad():
-        for clinical_img, dermo_img, multi_img, label in val_loader:
+        for clinical_img, dermo_img, label in val_loader:
             clinical_img = clinical_img.to(DEVICE)
             dermo_img = dermo_img.to(DEVICE)
-            multi_img = multi_img.to(DEVICE)
             label = label.to(DEVICE)
 
             preds = model(
                 clinical_img=clinical_img,
-                dermoscopy_img=dermo_img,
-                multispectral_img=multi_img
+                dermoscopy_img=dermo_img
             )
 
             loss = mse_loss(preds, label)
@@ -151,6 +167,10 @@ def evaluate():
     print(f"MSE  : {mse:.4f}")
     print(f"MAE  : {mae:.4f}")
     print(f"RMSE : {rmse:.4f}")
+    print(f"Prediction range: {preds_arr.min():.3f} to {preds_arr.max():.3f}")
+    print(f"Prediction mean: {preds_arr.mean():.3f}")
+    print(f"Label range: {labels_arr.min():.3f} to {labels_arr.max():.3f}")
+    print(f"Label mean: {labels_arr.mean():.3f}")
     print("=======================================\n")
 
     # -----------------------------
@@ -200,6 +220,6 @@ def evaluate():
 # -----------------------------
 if __name__ == "__main__":
     if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError("Trained model not found. Run train.py first.")
+        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}")
 
     evaluate()

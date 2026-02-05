@@ -6,7 +6,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Multi-Modal Skin Pigmentation Detection System</h1>
+        <h1>Dual-Modal Skin Pigmentation Detection System</h1>
       </header>
       <main>
         <UploadForm />

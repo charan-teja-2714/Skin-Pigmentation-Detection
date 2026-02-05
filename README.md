@@ -1,12 +1,12 @@
-# Multi-Modal Skin Pigmentation Detection System
+# Dual-Modal Skin Pigmentation Detection System
 
-A complete end-to-end system for analyzing skin pigmentation using multiple image modalities with deep learning.
+A complete end-to-end system for analyzing skin pigmentation using clinical and dermoscopy images with deep learning.
 
 ## 🏗️ Architecture
 
 ### Backend (Python + FastAPI + PyTorch)
-- **Multi-Modal Fusion**: Combines clinical, dermoscopy, and multispectral images
-- **Swin Transformers**: Three separate encoders for each image type
+- **Dual-Modal Fusion**: Combines clinical and dermoscopy images
+- **Swin Transformers**: Two separate encoders for each image type
 - **Cross-Attention**: Fuses features with clinical images as query
 - **Regression Output**: Produces pigmentation score (0-1) and severity label
 
@@ -42,7 +42,7 @@ Frontend runs on: http://localhost:3000
 ### 3. Use the System
 1. Open http://localhost:3000 in your browser
 2. Upload a clinical image (required)
-3. Optionally upload dermoscopy and/or multispectral images
+3. Optionally upload dermoscopy image
 4. Click "Analyze" to get pigmentation score and severity
 
 ## 📁 Project Structure
@@ -78,7 +78,6 @@ skin-pigmentation-app/
 ### Input Requirements
 - **Clinical Image**: Required, any skin image
 - **Dermoscopy Image**: Optional, dermatoscope image
-- **Multispectral Image**: Optional, multispectral imaging data
 - **Format**: JPG, PNG, or other common image formats
 - **Processing**: Auto-resized to 224x224, normalized
 
@@ -146,7 +145,7 @@ npm run build
 The system provides:
 - **Quantitative Score**: Numerical assessment of pigmentation severity
 - **Qualitative Label**: Human-readable severity classification
-- **Multi-Modal Analysis**: Enhanced accuracy through image fusion
+- **Dual-Modal Analysis**: Enhanced accuracy through image fusion
 - **Real-Time Processing**: Results in seconds
 
 ## 🔒 Security Notes

@@ -8,22 +8,12 @@ model = load_model()
 
 @router.post("/predict")
 async def predict(
-    clinical_image: UploadFile = File(...),
-    dermoscopy_image: UploadFile = File(None),
-    multispectral_image: UploadFile = File(None)
+    clinical_image: UploadFile = File(...)
 ):
     try:
         clinical_bytes = io.BytesIO(await clinical_image.read())
         
-        dermoscopy_bytes = None
-        if dermoscopy_image:
-            dermoscopy_bytes = io.BytesIO(await dermoscopy_image.read())
-            
-        multispectral_bytes = None
-        if multispectral_image:
-            multispectral_bytes = io.BytesIO(await multispectral_image.read())
-        
-        result = run_inference(model, clinical_bytes, dermoscopy_bytes, multispectral_bytes)
+        result = run_inference(model, clinical_bytes)
         return result
         
     except Exception as e:

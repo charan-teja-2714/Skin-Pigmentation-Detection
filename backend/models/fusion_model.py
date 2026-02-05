@@ -8,10 +8,9 @@ class FusionModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        # Encoders (do NOT pass feature_dim manually)
+        # Encoders
         self.clinical_encoder = SwinEncoder()
         self.dermoscopy_encoder = SwinEncoder()
-        self.multispectral_encoder = SwinEncoder()
 
         feature_dim = self.clinical_encoder.embed_dim
 
@@ -22,7 +21,7 @@ class FusionModel(nn.Module):
 
         self.prediction_head = PredictionHead(feature_dim)
 
-    def forward(self, clinical_img, dermoscopy_img=None, multispectral_img=None):
+    def forward(self, clinical_img, dermoscopy_img=None):
         # Encode clinical image (Query)
         clinical_features = self.clinical_encoder(clinical_img)  # (B, D)
 
@@ -33,16 +32,11 @@ class FusionModel(nn.Module):
             dermo_features = self.dermoscopy_encoder(dermoscopy_img)
             key_value_features.append(dermo_features)
 
-        # Encode multispectral image
-        if multispectral_img is not None:
-            multi_features = self.multispectral_encoder(multispectral_img)
-            key_value_features.append(multi_features)
-
         # If no auxiliary modality is provided (fallback)
         if len(key_value_features) == 0:
             key_value_features.append(torch.zeros_like(clinical_features))
 
-        # Stack dermoscopy & multispectral as separate tokens
+        # Stack dermoscopy as separate tokens
         key_value_features = torch.stack(key_value_features, dim=1)  # (B, N, D)
 
         # Prepare query
