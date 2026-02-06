@@ -20,6 +20,10 @@ app.include_router(router)
 def read_root():
     return {"message": "Skin Pigmentation Detection API is running"}
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     uvicorn.run("app.main:app", host="0.0.0.0", port=port)
