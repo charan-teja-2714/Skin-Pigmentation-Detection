@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// const API_BASE_URL = 'http://localhost:8000';
+// const API_BASE_URL = 'http://localhost:10000';
 const API_BASE_URL = 'https://skin-pigmentation-detection.onrender.com';
 
 
@@ -12,6 +12,7 @@ export const predictPigmentation = async (clinicalImage, manualData = {}) => {
   }
   
   // Add manual data fields if provided
+  if (manualData.age) formData.append('age', manualData.age);
   if (manualData.affected_area) formData.append('affected_area', manualData.affected_area);
   if (manualData.pigmentation_intensity) formData.append('pigmentation_intensity', manualData.pigmentation_intensity);
   if (manualData.duration) formData.append('duration', manualData.duration);

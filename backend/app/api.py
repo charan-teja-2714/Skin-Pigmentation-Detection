@@ -22,6 +22,7 @@ def get_model():
 @router.post("/predict")
 async def predict(
     clinical_image: Optional[UploadFile] = File(None),
+    age: Optional[str] = Form(None),
     affected_area: Optional[str] = Form(None),
     pigmentation_intensity: Optional[str] = Form(None),
     duration: Optional[str] = Form(None),
@@ -36,7 +37,7 @@ async def predict(
     try:
         # Check if we have either image or manual inputs
         has_image = clinical_image is not None
-        manual_fields = [affected_area, pigmentation_intensity, duration, progression,
+        manual_fields = [age, affected_area, pigmentation_intensity, duration, progression,
                         itching, burning, pain, sun_exposure, sunscreen_use, user_concern]
         has_manual_inputs = any(field is not None and field != '' for field in manual_fields)
 
@@ -48,6 +49,7 @@ async def predict(
             clinical_bytes = io.BytesIO(await clinical_image.read())
 
         manual_data = {
+            'age': age,
             'affected_area': affected_area,
             'pigmentation_intensity': pigmentation_intensity,
             'duration': duration,

@@ -12,6 +12,7 @@ const UploadForm = () => {
   
   // Manual input fields
   const [manualData, setManualData] = useState({
+    age: '',
     affected_area: '',
     pigmentation_intensity: '',
     duration: '',
@@ -88,7 +89,19 @@ const UploadForm = () => {
           {/* Left Side - Manual Assessment */}
           <div className="assessment-section">
             <h3>📋 Clinical Assessment</h3>
-            
+
+            <div className="form-group">
+              <label>Age:</label>
+              <input
+                type="number"
+                min="1"
+                max="120"
+                placeholder="Enter your age"
+                value={manualData.age}
+                onChange={(e) => handleManualInputChange('age', e.target.value)}
+              />
+            </div>
+
             <div className="form-group">
               <label>Affected Area (Extent):</label>
               <select value={manualData.affected_area} onChange={(e) => handleManualInputChange('affected_area', e.target.value)}>

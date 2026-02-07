@@ -372,6 +372,22 @@ def run_manual_inference(manual_data):
     score = 0.0
     filled_fields = 0
     
+    # Age-based risk adjustment
+    if manual_data.get('age'):
+        try:
+            age = int(manual_data['age'])
+            if age < 18:
+                score += 0.05
+            elif age < 30:
+                score += 0.05
+            elif age < 50:
+                score += 0.1
+            else:
+                score += 0.15
+            filled_fields += 1
+        except ValueError:
+            pass
+
     # Count filled fields and calculate base score
     if manual_data.get('affected_area'):
         area_scores = {'small_spots': 0.1, 'several_small_spots': 0.2, 'large_patches': 0.4, 'most_of_area': 0.6}
@@ -545,7 +561,22 @@ def calculate_manual_adjustment(manual_data):
     Calculate adjustment score from manual inputs
     """
     score = 0.0
-    
+
+    # Age-based risk adjustment
+    if manual_data.get('age'):
+        try:
+            age = int(manual_data['age'])
+            if age < 18:
+                score += 0.05
+            elif age < 30:
+                score += 0.05
+            elif age < 50:
+                score += 0.1
+            else:
+                score += 0.15
+        except ValueError:
+            pass
+
     # Affected Area scoring
     area_scores = {
         'small_spots': 0.1,
