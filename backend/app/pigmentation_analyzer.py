@@ -430,6 +430,7 @@ class PigmentationAnalyzer:
             # More sensitive threshold for pigmentation
             dark_threshold = max(60, skin_mean - 1.0 * skin_std)
         else:
+            skin_mean = 120
             dark_threshold = 80
             
         relative_dark = gray < dark_threshold

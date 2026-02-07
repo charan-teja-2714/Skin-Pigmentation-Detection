@@ -292,8 +292,12 @@ def generate_masks(image_tensor):
     # =====================================================
 
     skin_region = gray[skin_mask > 0]
-    skin_mean = np.mean(skin_region) if len(skin_region) > 0 else 120
-    skin_std = np.std(skin_region) if len(skin_region) > 0 else 20
+    if len(skin_region) > 0:
+        skin_mean = np.mean(skin_region)
+        skin_std = np.std(skin_region)
+    else:
+        skin_mean = 120
+        skin_std = 20
 
     # 🔹 WIDER HSV pigmentation range (critical fix)
     hsv_pigment = cv2.inRange(

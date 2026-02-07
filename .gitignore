@@ -22,6 +22,8 @@ backend/data/
 
 # Output folders
 backend/outputs/
+backend/training_figures/
+
 
 # Metadata and config files
 backend/metadata.py
