@@ -349,18 +349,18 @@ def generate_masks(image_tensor):
 # =========================================================
 # MAIN INFERENCE FUNCTION
 # =========================================================
-def run_inference(model, clinical_image=None, manual_data=None):
+def run_inference(clinical_image=None, manual_data=None):
     """
     Main inference pipeline - handles both image and manual inputs
     """
-    
+
     # Handle manual input only
     if clinical_image is None and manual_data:
         return run_manual_inference(manual_data)
-    
+
     # Handle image input (with optional manual data)
     if clinical_image:
-        return run_image_inference(model, clinical_image, manual_data)
+        return run_image_inference(clinical_image, manual_data)
     
     raise ValueError("Either clinical_image or manual_data must be provided")
 
@@ -469,50 +469,27 @@ def run_manual_inference(manual_data):
     }
 
 
-def run_image_inference(model, clinical_image, manual_data=None):
+def run_image_inference(clinical_image, manual_data=None):
     """
-    Image-based inference using trained model with optional manual data enhancement
+    Image-based inference using classical vision features + optional manual data
     """
     with torch.no_grad():
         # Preprocess image
         clinical_tensor = preprocess_image(clinical_image)
 
-        # Get model prediction
-        device = next(model.parameters()).device
-        clinical_tensor = clinical_tensor.to(device)  # Already has batch dimension from preprocess_image
+        # Extract real features using classical computer vision
+        analyzer = PigmentationAnalyzer()
+        features = analyzer.extract_features(clinical_tensor.squeeze(0))
 
-        # Create metadata tensor (3 values expected by the model)
-        # Default to neutral values if no manual data provided
-        if manual_data:
-            # Convert manual data to 3 metadata features
-            meta_values = [
-                {'small_spots': 0.1, 'several_small_spots': 0.3, 'large_patches': 0.6, 'most_of_area': 0.9}.get(manual_data.get('affected_area'), 0.5),
-                {'light': 0.2, 'medium': 0.5, 'dark': 0.8}.get(manual_data.get('pigmentation_intensity'), 0.5),
-                {'less_than_1_month': 0.1, 'one_to_six_months': 0.3, 'more_than_six_months': 0.6, 'several_years': 0.9}.get(manual_data.get('duration'), 0.5)
-            ]
-        else:
-            meta_values = [0.5, 0.5, 0.5]  # Neutral defaults
+        # Use rule-based severity from actual image features
+        score, severity = rule_based_severity(features)
 
-        metadata = torch.tensor([meta_values], dtype=torch.float32).to(device)
-
-        # Run model inference
-        model_output = model(clinical_tensor, metadata)
-        score = float(model_output.squeeze().cpu().numpy())
-        
-        # Determine severity from model score
-        if score <= 0.25:
-            severity = "Mild"
-        elif score <= 0.6:
-            severity = "Moderate"
-        else:
-            severity = "Severe"
-        
         # Enhance with manual data if provided
         if manual_data:
             manual_score = calculate_manual_adjustment(manual_data)
-            # Weighted combination: 70% model, 30% manual
+            # Weighted combination: 70% image features, 30% manual
             score = 0.7 * score + 0.3 * manual_score
-            
+
             # Recalculate severity
             if score <= 0.25:
                 severity = "Mild"
@@ -520,10 +497,8 @@ def run_image_inference(model, clinical_image, manual_data=None):
                 severity = "Moderate"
             else:
                 severity = "Severe"
-        
-        # Generate masks for visualization (optional)
-        analyzer = PigmentationAnalyzer()
-        features = analyzer.extract_features(clinical_tensor.squeeze(0))
+
+        # Generate masks for visualization
         masks = generate_masks(clinical_tensor.squeeze(0))
         
         # Generate LLM advisory
@@ -543,7 +518,7 @@ def run_image_inference(model, clinical_image, manual_data=None):
                 "avg_intensity": round(features.get("avg_intensity", 0), 3),
                 "contrast": round(features.get("contrast", 0), 3),
                 "is_skin": features.get("is_skin", True),
-                "input_method": "model" + (" + manual" if manual_data else "")
+                "input_method": "image" + (" + manual" if manual_data else "")
             },
             "masks": masks,
             "advisory": advisory_text

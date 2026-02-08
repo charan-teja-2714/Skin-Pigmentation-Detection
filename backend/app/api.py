@@ -1,23 +1,9 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from .inference import run_inference
-from .model_loader import load_model
 from typing import Optional
 import io
-import gc
 
 router = APIRouter()
-
-# Lazy model loading - only load when first prediction with image is requested
-_model = None
-
-def get_model():
-    global _model
-    if _model is None:
-        print("[INFO] Loading model on first request...")
-        _model = load_model()
-        gc.collect()  # Free memory after loading
-        print("[INFO] Model loaded successfully")
-    return _model
 
 @router.post("/predict")
 async def predict(
@@ -62,9 +48,7 @@ async def predict(
             'user_concern': user_concern
         } if has_manual_inputs else None
 
-        # Only load model when an image is provided
-        model = get_model() if has_image else None
-        result = run_inference(model, clinical_bytes, manual_data)
+        result = run_inference(clinical_bytes, manual_data)
         return result
 
     except Exception as e:
