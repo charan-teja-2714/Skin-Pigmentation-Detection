@@ -32,7 +32,17 @@ async def predict(
 
         clinical_bytes = None
         if has_image:
-            clinical_bytes = io.BytesIO(await clinical_image.read())
+            # FIX: Reject images larger than 5MB before processing
+            contents = await clinical_image.read()
+            size_mb = len(contents) / (1024 * 1024)
+            
+            if size_mb > 5.0:
+                raise HTTPException(
+                    status_code=413, 
+                    detail=f"Image too large ({size_mb:.1f}MB). Maximum size is 5MB."
+                )
+            
+            clinical_bytes = io.BytesIO(contents)
 
         manual_data = {
             'age': age,
@@ -51,5 +61,7 @@ async def predict(
         result = run_inference(clinical_bytes, manual_data)
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")

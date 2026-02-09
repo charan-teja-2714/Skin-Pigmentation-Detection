@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { predictPigmentation } from '../api';
+import React, { useState, useEffect } from 'react';
+import { predictPigmentation, checkBackendHealth } from '../api';
 import CameraCapture from './CameraCapture';
 
 const UploadForm = () => {
@@ -9,6 +9,10 @@ const UploadForm = () => {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [showCamera, setShowCamera] = useState(false);
+  // ============================================
+  // FIX: Add backend warming state
+  // ============================================
+  const [backendStatus, setBackendStatus] = useState('checking'); // 'checking', 'ready', 'warming'
   
   // Manual input fields
   const [manualData, setManualData] = useState({
@@ -25,6 +29,27 @@ const UploadForm = () => {
     user_concern: ''
   });
 
+  // ============================================
+  // FIX: Pre-ping backend on component mount
+  // ============================================
+  useEffect(() => {
+    const warmUpBackend = async () => {
+      setBackendStatus('checking');
+      const isHealthy = await checkBackendHealth();
+      if (isHealthy) {
+        setBackendStatus('ready');
+      } else {
+        setBackendStatus('warming');
+        // Retry after 5 seconds
+        setTimeout(async () => {
+          const retry = await checkBackendHealth();
+          setBackendStatus(retry ? 'ready' : 'warming');
+        }, 5000);
+      }
+    };
+    warmUpBackend();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -33,6 +58,14 @@ const UploadForm = () => {
     
     if (!hasImage && !hasManualInputs) {
       setError('Please provide either an image or fill in the assessment fields');
+      return;
+    }
+
+    // ============================================
+    // FIX: Show warming message if backend not ready
+    // ============================================
+    if (backendStatus === 'warming') {
+      setError('Backend is warming up. Please wait a moment and try again.');
       return;
     }
 
@@ -50,9 +83,18 @@ const UploadForm = () => {
       
       const prediction = await predictPigmentation(clinicalImage, cleanManualData);
       setResult(prediction);
+      setBackendStatus('ready'); // Mark as ready after successful request
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Prediction failed';
-      setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      // ============================================
+      // FIX: Better error handling for timeouts
+      // ============================================
+      if (err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
+        setError('Request timed out. The backend may be warming up. Please try again in a moment.');
+        setBackendStatus('warming');
+      } else {
+        const errorMessage = err.response?.data?.detail || err.message || 'Prediction failed';
+        setError(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage));
+      }
     } finally {
       setLoading(false);
     }
@@ -83,6 +125,25 @@ const UploadForm = () => {
   return (
     <div className="upload-form">
       <h2>Skin Pigmentation Assessment</h2>
+      
+      {/* ============================================ */}
+      {/* FIX: Show backend status indicator */}
+      {/* ============================================ */}
+      {backendStatus === 'checking' && (
+        <div className="info-banner" style={{backgroundColor: '#fff3cd', padding: '10px', borderRadius: '5px', marginBottom: '15px'}}>
+          ⏳ Checking backend status...
+        </div>
+      )}
+      {backendStatus === 'warming' && (
+        <div className="warning-banner" style={{backgroundColor: '#fff3cd', padding: '10px', borderRadius: '5px', marginBottom: '15px'}}>
+          🔥 Backend is warming up. This may take 30-60 seconds on first request. Please wait...
+        </div>
+      )}
+      {backendStatus === 'ready' && (
+        <div className="success-banner" style={{backgroundColor: '#d4edda', padding: '10px', borderRadius: '5px', marginBottom: '15px'}}>
+          ✅ Backend is ready
+        </div>
+      )}
       
       <form onSubmit={handleSubmit}>
         <div className="form-container">

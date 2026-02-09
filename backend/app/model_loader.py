@@ -5,15 +5,22 @@ from huggingface_hub import hf_hub_download
 from severity_model_v2.models.fusion_model import FusionModel
 import numpy as np
 
+# ============================================
+# FIX: Enable Hugging Face caching
+# ============================================
+os.environ["HF_HOME"] = "./hf_cache"
+os.environ["TRANSFORMERS_CACHE"] = "./hf_cache"
+
 def load_model():
     model = FusionModel()
 
     try:
-        # Download model from Hugging Face
+        # FIX: Download model with caching enabled
         model_path = hf_hub_download(
             repo_id="Charan2714/skin-pigmentation",
             filename="severity_swin_multimodal_best.pth",
-            cache_dir="./hf_cache"
+            cache_dir="./hf_cache",
+            resume_download=True  # Resume if interrupted
         )
 
         # Load the model weights
