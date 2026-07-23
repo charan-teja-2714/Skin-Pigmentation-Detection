@@ -381,21 +381,7 @@ const UploadForm = () => {
             )}
           </div>
           
-          {/* {result.masks && (
-            <div className="masks-section">
-              <h4>🔍 Analysis Visualization</h4>
-              <div className="masks-container">
-                <div className="mask-item">
-                  <h5>Skin Detection</h5>
-                  <img src={result.masks.skin_mask} alt="Skin mask" className="mask-image" />
-                </div>
-                <div className="mask-item">
-                  <h5>Pigmentation Detection</h5>
-                  <img src={result.masks.pigmentation_mask} alt="Pigmentation mask" className="mask-image" />
-                </div>
-              </div>
-            </div>
-          )} */}
+
         </div>
       )}
 

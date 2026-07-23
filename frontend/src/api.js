@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// const API_BASE_URL = 'http://localhost:10000';
-const API_BASE_URL = 'https://skin-pigmentation-detection.onrender.com';
+const API_BASE_URL = 'http://localhost:10000';
+// const API_BASE_URL = 'https://skin-pigmentation-detection.onrender.com';
 
 // ============================================
 // FIX: Add timeout and retry logic

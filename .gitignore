@@ -2,7 +2,11 @@
 backend/training/
 backend/testing/
 backend/segmentation_test/
-backend/severity_model_v2/
+
+# Ignore large epoch checkpoints but keep best_model.pth
+backend/severity_model_v2/checkpoints_dual_modal/epoch_*.pth
+backend/severity_model_v2/checkpoints_dual_modal/last_checkpoint.pth
+backend/severity_model_v2/checkpoints_unet/last_unet.pth
 
 # Model checkpoints and weights
 backend/checkpoints/

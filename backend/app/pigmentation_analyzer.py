@@ -323,67 +323,74 @@ class PigmentationAnalyzer:
 
     def is_skin_image(self, img):
         """
-        Enhanced skin detection with room/object rejection
+        Two-stage CV pre-filter (adapted from the segmentation project strategy).
+
+        Stage 1 — fast structural checks (edge density + center uniformity):
+          • Edge density (Canny 30/100): skin photos are smooth; keyboards,
+            floors, documents have high structural edge density (> 0.40).
+          • Center-crop uniformity: a blank wall or random object tends to be
+            very uniform at the center (std < 12). Skin with pigmentation
+            is always somewhat varied.
+          Both checks use AND logic — only reject when BOTH fire, minimising
+          false rejection of real skin images.
+
+        Stage 2 — colour sanity checks:
+          • HSV skin-tone ratio, colour-channel dominance, saturation range.
         """
-        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
-        
-        # HSV skin detection
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        hsv  = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        h, w = gray.shape
+
+        # ── Stage 1a: Edge density (Canny 30/100) ──────────────
+        edges = cv2.Canny(gray, 30, 100)
+        edge_density = float(np.sum(edges > 0)) / edges.size
+        # Clinical skin photos: 0.05-0.30
+        # Keyboards / charts / floors: > 0.40
+        high_edge = edge_density > 0.40
+
+        # ── Stage 1b: Center-crop uniformity ───────────────────
+        cy, cx = h // 2, w // 2
+        crop_h, crop_w = max(h // 5, 20), max(w // 5, 20)
+        center = gray[cy - crop_h: cy + crop_h,
+                      cx - crop_w: cx + crop_w]
+        center_std = float(np.std(center))
+        # Very uniform center = blank wall / plain surface
+        uniform_center = center_std < 12.0
+
+        # AND logic: reject ONLY when BOTH fire
+        if high_edge and uniform_center:
+            if self.debug:
+                print(f"[SKIN] REJECTED by Stage-1: "
+                      f"edge_density={edge_density:.3f}, "
+                      f"center_std={center_std:.1f}")
+            return False
+
+        # ── Stage 2: Colour sanity checks ──────────────────────
         skin_lower1 = np.array([0, 15, 50])
         skin_upper1 = np.array([25, 180, 255])
         skin_lower2 = np.array([160, 15, 50])
         skin_upper2 = np.array([180, 180, 255])
-
         mask1 = cv2.inRange(hsv, skin_lower1, skin_upper1)
         mask2 = cv2.inRange(hsv, skin_lower2, skin_upper2)
-        skin_mask = cv2.bitwise_or(mask1, mask2)
-        skin_ratio = np.sum(skin_mask > 0) / skin_mask.size
+        skin_ratio = float(np.sum(cv2.bitwise_or(mask1, mask2) > 0)) / (h * w)
 
-        # Color checks
-        rgb_mean = np.mean(img, axis=(0, 1))
-        very_blue = rgb_mean[2] > rgb_mean[0] + 50 and rgb_mean[2] > rgb_mean[1] + 50
-        very_green = rgb_mean[1] > rgb_mean[0] + 50 and rgb_mean[1] > rgb_mean[2] + 50
-        too_dark = np.mean(rgb_mean) < 40
-        too_bright = np.mean(rgb_mean) > 240
+        rgb_mean  = np.mean(img, axis=(0, 1))
+        very_blue  = rgb_mean[2] > rgb_mean[0] + 55 and rgb_mean[2] > rgb_mean[1] + 55
+        very_green = rgb_mean[1] > rgb_mean[0] + 55 and rgb_mean[1] > rgb_mean[2] + 55
+        too_dark   = float(np.mean(rgb_mean)) < 35
+        avg_sat    = float(np.mean(hsv[:, :, 1]))
 
-        # Edge density
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        edges = cv2.Canny(gray, 50, 150)
-        edge_density = np.sum(edges > 0) / edges.size
-        
-        # NEW: Texture analysis to detect rooms/objects
-        # Calculate local binary pattern-like texture
-        kernel = np.array([[-1,-1,-1],[-1,8,-1],[-1,-1,-1]])
-        texture_response = cv2.filter2D(gray, -1, kernel)
-        high_texture_ratio = np.sum(np.abs(texture_response) > 20) / texture_response.size
-        
-        # NEW: Color uniformity check
-        color_std = np.std(img.reshape(-1, 3), axis=0)
-        avg_color_std = np.mean(color_std)
-        
-        # NEW: Saturation check - skin has moderate saturation
-        s_channel = hsv[:,:,1]
-        avg_saturation = np.mean(s_channel)
-        
         if self.debug:
-            print(f"[SKIN] skin_ratio={skin_ratio:.3f}, edge_density={edge_density:.3f}")
-            print(f"[SKIN] high_texture_ratio={high_texture_ratio:.3f}, avg_color_std={avg_color_std:.1f}")
-            print(f"[SKIN] avg_saturation={avg_saturation:.1f}, brightness={np.mean(rgb_mean):.1f}")
+            print(f"[SKIN] edge_density={edge_density:.3f}, center_std={center_std:.1f}, "
+                  f"skin_ratio={skin_ratio:.3f}, avg_sat={avg_sat:.1f}")
 
-        # Enhanced validation with adjusted thresholds
-        is_skin = (
-            skin_ratio > 0.15 and          # At least 15% skin-like pixels
-            not very_blue and              # Not predominantly blue
-            not very_green and             # Not predominantly green
-            not too_dark and               # Not too dark
-            not too_bright and             # Not too bright (room was 206.4)
-            edge_density < 0.35 and        # Not too many edges
-            high_texture_ratio < 0.30 and  # Allow more texture for pigmented skin
-            15 < avg_color_std < 80 and    # Moderate color variation
-            20 < avg_saturation < 120 and  # Reasonable saturation for skin
-            np.mean(rgb_mean) < 200        # Reject very bright images (rooms)
+        return (
+            skin_ratio > 0.10
+            and not very_blue
+            and not very_green
+            and not too_dark
+            and avg_sat > 10          # pure-grey images have near-zero saturation
         )
-        
-        return is_skin
 
     # ======================================================
     # IMAGE UTILS
@@ -515,33 +522,49 @@ class PigmentationAnalyzer:
 # ======================================================
 def rule_based_severity(features):
     """
-    FIXED: Better severity classification for clear skin
+    Severity classification using mask-derived features.
+
+    Primary signals:  pigmented_area_pct, avg_intensity, contrast
+    Bonus signals:    asymmetry, border_irregularity, color_variance
+                      (present when features come from _features_from_mask)
     """
 
     if not features.get("is_skin", True):
         return 0.0, "Not a skin image"
 
-    area = features["pigmented_area_pct"]
-    intensity = features["avg_intensity"]
-    contrast = features["contrast"]
-    
-    print(f"[SEVERITY] area={area:.1f}%, intensity={intensity:.3f}, contrast={contrast:.3f}")
+    area      = features.get("pigmented_area_pct", 0.0)
+    intensity = features.get("avg_intensity", 0.0)
+    contrast  = features.get("contrast", 0.0)
 
-    # Clear skin detection - very low pigmentation
+    # ABCDE bonus (0–0.15 extra to the score)
+    asym   = features.get("asymmetry", 0.0)
+    border = features.get("border_irregularity", 0.0)
+    cvar   = features.get("color_variance", 0.0)
+    abcde_bonus = 0.15 * (0.4 * asym + 0.4 * border + 0.2 * cvar)
+
+    # Base score from primary features
     if area < 3 and intensity < 0.3:
-        return 0.1, "Mild"
-    
-    # Light pigmentation
-    if area < 8 or (area < 15 and intensity < 0.4):
-        return 0.2, "Mild"
-    
-    # Moderate pigmentation
-    if area < 25 or (area < 35 and intensity < 0.6):
-        return 0.5, "Moderate"
-    
-    # Significant pigmentation
-    if area < 50 or intensity < 0.8:
-        return 0.7, "Moderate"
-    
-    # Severe pigmentation
-    return 0.9, "Severe"
+        base_score = 0.10
+
+    elif area < 8 or (area < 15 and intensity < 0.4):
+        base_score = 0.20
+
+    elif area < 25 or (area < 35 and intensity < 0.6):
+        base_score = 0.50
+
+    elif area < 50 or intensity < 0.8:
+        base_score = 0.70
+
+    else:
+        base_score = 0.90
+
+    score = min(1.0, base_score + abcde_bonus)
+
+    if score <= 0.25:
+        severity = "Mild"
+    elif score <= 0.60:
+        severity = "Moderate"
+    else:
+        severity = "Severe"
+
+    return round(score, 3), severity

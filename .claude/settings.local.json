@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python test_dual_modal.py:*)",
+      "Bash(python:*)",
+      "Bash(dir:*)",
+      "Bash(venv/Scripts/python -c \"import tqdm; print\\(tqdm.__version__\\)\")",
+      "Bash(git add backend/app/inference.py backend/app/model_loader.py backend/app/main.py backend/app/pigmentation_analyzer.py backend/severity_model_v2/models/unet.py backend/severity_model_v2/datasets/unet_dataset.py backend/severity_model_v2/train_unet.py)",
+      "Bash(git commit:*)",
+      "Bash(git add backend/app/inference.py backend/app/model_loader.py backend/app/main.py backend/app/pigmentation_analyzer.py)"
+    ]
+  }
+}

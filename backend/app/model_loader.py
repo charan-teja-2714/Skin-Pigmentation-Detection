@@ -1,54 +1,84 @@
 import torch
-import gc
 import os
-from huggingface_hub import hf_hub_download
-from severity_model_v2.models.fusion_model import FusionModel
-import numpy as np
+from severity_model_v2.models.dual_modal_fusion import DualModalFusionModel
+from severity_model_v2.models.unet import UNet
 
-# ============================================
-# FIX: Enable Hugging Face caching
-# ============================================
-os.environ["HF_HOME"] = "./hf_cache"
-os.environ["TRANSFORMERS_CACHE"] = "./hf_cache"
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+MODEL_PATH = os.path.join(
+    _BASE, "severity_model_v2", "checkpoints_dual_modal", "best_model.pth"
+)
+UNET_PATH = os.path.join(
+    _BASE, "severity_model_v2", "checkpoints_unet", "best_unet.pth"
+)
+
+_model = None
+_unet  = None
+
+
+# ── Dual-modal model (required) ───────────────────────────────
 def load_model():
-    model = FusionModel()
+    global _model
 
-    try:
-        # FIX: Download model with caching enabled
-        model_path = hf_hub_download(
-            repo_id="Charan2714/skin-pigmentation",
-            filename="severity_swin_multimodal_best.pth",
-            cache_dir="./hf_cache",
-            resume_download=True  # Resume if interrupted
+    model = DualModalFusionModel(
+        model_name="swin_tiny_patch4_window7_224",
+        pretrained=False
+    )
+
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"[ERROR] Trained model not found at: {MODEL_PATH}\n"
+            "Please run train_dual_modal.py first."
         )
 
-        # Load the model weights
-        checkpoint = torch.load(model_path, map_location='cpu', weights_only=True)
-
-        # Handle different checkpoint formats
-        if 'model_state_dict' in checkpoint:
-            state_dict = checkpoint['model_state_dict']
-        elif 'model' in checkpoint:
-            state_dict = checkpoint['model']
-        else:
-            state_dict = checkpoint
-
-        # Load state dict with strict=False to handle any architecture differences
-        model.load_state_dict(state_dict, strict=False)
-        print(f"[INFO] Loaded model from Hugging Face: Charan2714/skin-pigmentation")
-
-        # Free checkpoint from memory
-        del checkpoint, state_dict
-        gc.collect()
-
-    except Exception as e:
-        print(f"[ERROR] Failed to load model from Hugging Face: {e}")
-        print(f"[WARNING] Using model with random weights")
+    state_dict = torch.load(MODEL_PATH, map_location="cpu")
+    model.load_state_dict(state_dict)
+    print(f"[INFO] Loaded dual-modal model from {MODEL_PATH}")
 
     model.eval()
+    _model = model
     return model
 
+
+def get_model():
+    if _model is None:
+        raise RuntimeError(
+            "[ERROR] Model not loaded. Ensure load_model() was called at startup."
+        )
+    return _model
+
+
+# ── U-Net segmentation model (optional) ──────────────────────
+def load_unet():
+    """
+    Load the U-Net segmentation model if its checkpoint exists.
+    Returns the loaded model, or None if the checkpoint is not found
+    (falls back to GrabCut in that case).
+    """
+    global _unet
+
+    if not os.path.exists(UNET_PATH):
+        print(f"[INFO] U-Net checkpoint not found at {UNET_PATH}.")
+        print("[INFO] Segmentation will use GrabCut (CV-based) instead.")
+        print("[INFO] Run 'python -m severity_model_v2.train_unet' to train the U-Net.")
+        _unet = None
+        return None
+
+    model = UNet(in_channels=3, out_channels=1)
+    state_dict = torch.load(UNET_PATH, map_location="cpu")
+    model.load_state_dict(state_dict)
+    model.eval()
+    _unet = model
+    print(f"[INFO] Loaded U-Net segmentation model from {UNET_PATH}")
+    return model
+
+
+def get_unet():
+    """Returns the U-Net model, or None if not loaded (GrabCut will be used)."""
+    return _unet
+
+
+# ── Shared utility ────────────────────────────────────────────
 def get_severity_label(score):
     if score <= 0.25:
         return "Mild"
@@ -56,8 +86,3 @@ def get_severity_label(score):
         return "Moderate"
     else:
         return "Severe"
-
-# Demo function to simulate varied predictions
-def simulate_varied_predictions():
-    """Generate varied predictions for demo purposes"""
-    return np.random.choice([0.15, 0.4, 0.8], p=[0.3, 0.4, 0.3])

@@ -10,7 +10,7 @@ from models.fusion_model import FusionModel
 
 # ================= CONFIG =================
 DATA_ROOT = "data"
-CHECKPOINT_PATH = r"I:\Final Year Projects\Skin-Pigmentation-Detection\backend\checkpoints\new_train_model.pth"
+CHECKPOINT_PATH = r"I:\Final Year Projects\Skin-Pigmentation-Detection - Copy\backend\severity_model_v2\checkpoints_dual_modal\best_model.pth"
 BATCH_SIZE = 8
 VAL_SPLIT = 0.2
 

@@ -7,11 +7,14 @@ import os
 # ============================================
 # FIX: Load model ONCE at startup (global scope)
 # ============================================
-from app.model_loader import load_model
+from app.model_loader import load_model, load_unet
 
-print("[STARTUP] Loading model...")
+print("[STARTUP] Loading dual-modal model...")
 model = load_model()
-print("[STARTUP] Model loaded successfully")
+print("[STARTUP] Dual-modal model loaded successfully")
+
+print("[STARTUP] Loading U-Net segmentation model (optional)...")
+load_unet()   # prints INFO if not found; falls back to GrabCut silently
 
 app = FastAPI(title="Skin Pigmentation Detection API")
 
